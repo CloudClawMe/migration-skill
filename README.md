@@ -1,106 +1,53 @@
-# OpenClaw Migration Kit
+# migration-skill
 
-This folder contains a practical migration flow for importing an existing user-owned OpenClaw instance into a fresh CloudClaw / managed OpenClaw instance.
+A dedicated OpenClaw skill for migrating a user from an **old existing OpenClaw instance** into a **new destination instance**.
 
-## Recommended flow
+## What this repository contains
 
-- Storage: Hetzner Object Storage (S3-compatible)
-- Upload method: one-time presigned PUT URL
-- Import target: only a fresh empty instance
-- Import mode: full workspace export/import
-- Secrets: included, but only after explicit confirmation from the user
-- Max archive size: 5 GiB hard limit
-- Archive retention: auto-delete after 24h (recommended)
+This repository is structured as a real skill repository, with the main skill in:
 
-## Why presigned PUT instead of permanent write-only keys
+- `SKILL.md` — the primary migration skill for the **new instance**
 
-Hetzner Object Storage is S3-compatible, so the usual S3 presigned upload flow should work.
+Supporting documents:
 
-Advantages:
-- no long-lived credentials on the user's old instance
-- one upload, one object, one deadline
-- easy to bind the upload to a single migration session
-- easier cleanup and abuse control
+- `OLD-INSTANCE-MESSAGE-TEMPLATE.md` — the exact message template that the new instance should generate for the old instance
+- `OLD-INSTANCE-INSTRUCTION.md` — the full public instruction the old instance should read and follow
+- `manifest.schema.json` — suggested archive manifest schema
+- `export-openclaw.sh` — reference helper export script for the old instance
+- `telegram-copy-ru.md` — user-facing copy ideas in Russian
+- `HETZNER-S3-NOTES.md` — storage notes
 
-## Object key format
+## Intended flow
 
-Use this object key format:
+1. User starts migration on the **new instance**
+2. The new instance uses `SKILL.md`
+3. The new instance asks whether migration is **full** or **selective**
+4. The new instance requests a one-time upload session from a backend / microservice
+5. The new instance gives the user one ready-to-send message for the old instance
+6. The old instance creates an archive and uploads it to the one-time URL
+7. The new instance downloads and restores the uploaded archive
 
-`imports/<telegram_user_id>/<migration_id>/openclaw-export.tar.zst`
+## Important design choice
 
-Example:
+This repository does **not** embed long-lived S3 credentials.
 
-`imports/123456789/0a8c46a6-d3d3-4b2e-8fd1-26d9bf0a7f78/openclaw-export.tar.zst`
+Those should live behind a separate microservice that:
+- creates migration sessions
+- returns one-time upload URLs
+- optionally resolves uploaded archives back into download URLs for import
 
-## Migration session fields
+## Recommended archive format
 
-When the user starts migration in the Telegram bot, create:
+Recommended default:
+- `tar.gz`
 
-- `migration_id` — UUID
-- `telegram_user_id`
-- `secret` — random high-entropy token
-- `upload_url` — presigned PUT URL to the final object key
-- `expires_at`
-- `max_size_bytes` — 5368709120
-- `github_instruction_url` — public URL to `agent-full-instruction.md`
+Allowed fallback:
+- `zip`
 
-## User flow
+## Current status
 
-1. User taps `Import from existing OpenClaw`
-2. Your bot creates migration session + presigned upload URL
-3. Your bot sends one short prompt from `public-agent-prompt.md`
-4. User pastes that prompt into their old OpenClaw
-5. Old OpenClaw downloads/reads the full public migration instruction from GitHub
-6. Old OpenClaw:
-   - inspects the old instance
-   - lists detected secrets / keys / sessions to the user
-   - asks for confirmation
-   - builds export archive
-   - uploads archive to Hetzner via presigned URL
-   - returns manifest summary and checksum
-7. User returns to your Telegram bot and presses `Finish import`
-8. New instance receives an import skill instruction and restores the archive
-9. Import skill validates archive, extracts it into the fresh workspace, and confirms success
+The repository is now organized around the migration skill itself.
 
-## 5 GiB warnings
-
-The old agent must warn the user before upload when:
-
-- archive size exceeds 4.0 GiB — say upload may be slow and interruption risk is higher
-- archive size exceeds 4.5 GiB — strongly recommend cleaning cache / temp files first
-- archive size exceeds 5.0 GiB — abort export
-
-## What still needs wiring on your side
-
-You asked me to do everything I can. The remaining pieces that require your action are:
-
-1. Give me the real GitHub repo / path where these files should live publicly
-2. Give me the Hetzner S3 credentials / bucket details if you want me to wire concrete code against them
-3. Expose the migration start / finish flow in your Telegram bot
-4. Make sure new instances include the import skill from `import-skill/SKILL.md`
-
-## Suggested cleanup rules
-
-After import completes or expires:
-- delete uploaded archive
-- delete manifest sidecar if you store one
-- mark migration session consumed
-- never allow the same `migration_id` to import twice
-
-## Suggested archive layout
-
-Archive root:
-
-- `manifest.json`
-- `workspace/`
-
-Inside `workspace/`, place the full exported OpenClaw workspace contents.
-
-## Included files in this kit
-
-- `public-agent-prompt.md` — short prompt pasted into the user's old OpenClaw
-- `agent-full-instruction.md` — full public migration instruction hosted on GitHub
-- `export-openclaw.sh` — migration helper script the agent can create/run
-- `manifest.schema.json` — export manifest format
-- `import-skill/SKILL.md` — skill for the fresh instance to import the archive
-- `telegram-copy-ru.md` — ready-to-use user-facing copy
+What is still external:
+- the backend / microservice for issuing upload URLs
+- the runtime wiring that lets the skill call that backend directly
