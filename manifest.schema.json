@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudclaw.me/schemas/openclaw-migration-manifest.schema.json",
+  "title": "OpenClaw Migration Manifest",
+  "type": "object",
+  "required": [
+    "format_version",
+    "migration_id",
+    "telegram_user_id",
+    "created_at",
+    "export_mode",
+    "includes_secrets",
+    "top_level_paths",
+    "archive_size_bytes",
+    "sha256"
+  ],
+  "properties": {
+    "format_version": { "type": "string", "const": "1" },
+    "migration_id": { "type": "string", "minLength": 8 },
+    "telegram_user_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "export_mode": { "type": "string", "const": "full" },
+    "includes_secrets": { "type": "boolean" },
+    "top_level_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "estimated_size_bytes": { "type": "integer", "minimum": 0 },
+    "archive_size_bytes": { "type": "integer", "minimum": 0 },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "notes": { "type": "string" },
+    "source": {
+      "type": "object",
+      "properties": {
+        "product": { "type": "string" },
+        "hostname": { "type": "string" },
+        "workspace_path": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
