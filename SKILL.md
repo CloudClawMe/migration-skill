@@ -1,6 +1,6 @@
 ---
 name: migration_skill
-description: Help the user migrate an existing OpenClaw instance into this new instance: clarify scope, request a one-time upload session from backend tooling, generate the exact message for the old instance, and then import the uploaded archive back into this instance.
+description: "Help the user migrate an existing OpenClaw instance into this new instance: clarify scope, request a one-time upload session from backend tooling, generate the exact message for the old instance, and then import the uploaded archive back into this instance."
 metadata: { "openclaw": { "emoji": "📦" } }
 ---
 
