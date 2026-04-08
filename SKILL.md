@@ -60,6 +60,78 @@ If selective migration is requested, summarize the exact selected scope before p
 
 ## Required conversation flow on the new instance
 
+## Backend integration contract
+
+This skill assumes a dedicated migration presigner microservice is available.
+
+The **new destination instance** talks to that service directly.
+The **old source instance** must never receive storage credentials and does not need to know how URLs are minted.
+It should receive only:
+- the public instruction URL
+- the migration id
+- the one-time upload URL
+- upload expiry
+- max upload size
+- migration mode
+- archive format
+- scope summary
+
+### Presigner endpoints
+
+Expected endpoints:
+
+- `POST /v1/migrations/upload-url`
+- `POST /v1/migrations/download-url`
+
+Example upload-url request body:
+
+```json
+{
+  "telegram_user_id": "123456789",
+  "migration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "archive_format": "tar.gz",
+  "content_type": "application/gzip",
+  "expires_in": 3600
+}
+```
+
+Expected upload-url response:
+
+```json
+{
+  "bucket": "cloudclaw-migrations",
+  "object_key": "imports/123456789/550e8400-e29b-41d4-a716-446655440000/openclaw-export.tar.gz",
+  "upload_url": "https://...",
+  "expires_in": 3600,
+  "expires_at": "2026-04-08T16:00:00Z",
+  "max_size_bytes": 5368709120
+}
+```
+
+Example download-url request body:
+
+```json
+{
+  "object_key": "imports/123456789/550e8400-e29b-41d4-a716-446655440000/openclaw-export.tar.gz",
+  "expires_in": 3600
+}
+```
+
+Expected download-url response:
+
+```json
+{
+  "download_url": "https://...",
+  "expires_in": 3600,
+  "expires_at": "2026-04-08T16:00:00Z"
+}
+```
+
+Authentication model:
+- `Authorization: Bearer <INTERNAL_API_TOKEN>`
+- token must be configured on the new host only
+- never include this token in user-visible messages or repository examples with real values
+
 ### Step 1 — explain briefly
 
 Use plain language. Example:
@@ -78,18 +150,25 @@ If the user does not care, choose **full migration**.
 
 ### Step 3 — prepare migration session
 
-You need backend support for issuing a one-time upload session.
+The new instance should call the migration presigner microservice itself.
 
-The backend / microservice should return at least:
-- `migration_id`
+Recommended behavior:
+1. generate a fresh `migration_id` on the new instance
+2. call `POST /v1/migrations/upload-url`
+3. store the returned `object_key` for later import
+4. generate the user-facing message for the old instance
+
+The upload-url response should provide at least:
+- `object_key`
 - `upload_url`
 - `expires_at`
 - `max_size_bytes`
-- `archive_format`
-- `instruction_url`
-- optional `download_url` or a server-side way to resolve it later
+- implied archive filename from the selected format
 
-If the backend also returns a secret or token for the migration flow, treat it as sensitive and do not expose it unless it must be included in the message for the old instance.
+If a public instruction document is hosted separately, include its URL in the generated message.
+If not, the instruction can come from this repository content mirrored to a public URL or pasted inline when needed.
+
+If the backend also returns any secret or internal token, treat it as sensitive and do not expose it to the user or the old instance.
 
 ## Upload session contract
 
@@ -141,11 +220,12 @@ Once the old instance confirms `UPLOAD_OK`, continue here.
 - this instance should be fresh or explicitly approved for replacement
 - the uploaded archive must belong to the current migration session
 - archive size must be within the configured limit
+- the new instance must have the `object_key` returned by the upload-url call
 
 ### Restore procedure
 
-1. resolve or obtain the archive download URL from backend
-2. download the archive locally
+1. call `POST /v1/migrations/download-url` with the stored `object_key`
+2. download the archive locally from the returned `download_url`
 3. detect archive type (`tar.gz` or `zip`)
 4. extract into a temporary directory
 5. validate expected structure:

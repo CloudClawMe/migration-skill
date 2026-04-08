@@ -20,6 +20,7 @@ Migration session data:
 - Requested scope summary: `{{SCOPE_SUMMARY}}`
 
 Important rules:
+- The upload URL is already pre-issued by the new host; do not request any other URL and do not ask for storage credentials
 - Inspect this instance first and summarize what will be migrated
 - Explicitly list likely sensitive files, keys, tokens, session files, and credentials that may be included
 - Ask the user whether secrets / active credentials should be included before building the archive
